@@ -221,4 +221,12 @@ app.post('/api/account/password', requireAuth, (req, res) => {
   audit('PASSWORD_CHANGED', u.username); save(); res.json({ ok: true });
 });
 
-app.listen(PORT, () => console.log(`Secure auth running at http://localhost:${PORT}`));
+const PORT = process.env.PORT || 3000;
+app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
+
+
+
+
+
+
+module.exports = app;
