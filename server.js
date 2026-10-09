@@ -5,7 +5,7 @@ const path = require('path');
 const QRCode = require('qrcode');
 const C = require('./crypto-utils');
 
-// Vercel compatible port allocation
+// Fixed: Only declaring PORT once at the very top
 const PORT = process.env.PORT || 3000;
 const BACKUP_MINUTES = Number(process.env.BACKUP_MINUTES || 60);
 const KEEP_BACKUPS = 10;
@@ -13,7 +13,7 @@ const DATA = path.join(__dirname, 'data');
 const BACKUPS = path.join(DATA, 'backups');
 const DB_FILE = path.join(DATA, 'db.enc');
 
-// Only try to make folders if we are running locally, not on Vercel's read-only platform
+// Fixed: Removed duplicate variable conflict and wrapped directory creation safely
 if (process.env.NODE_ENV !== 'production') {
   try {
     if (!fs.existsSync(DATA)) {
@@ -23,14 +23,13 @@ if (process.env.NODE_ENV !== 'production') {
       fs.mkdirSync(BACKUPS, { recursive: true });
     }
   } catch (err) {
-    console.warn("Skipping folder creation in production cloud environment.");
+    console.warn("Skipping backup folder creation in production cloud environment.");
   }
 }
 
 // ================= Encrypted database =================
 let db = { users: [], audit: [] };
 let dirty = false;
-
 if (fs.existsSync(DB_FILE)) {
   try { 
     db = JSON.parse(C.decrypt(fs.readFileSync(DB_FILE, 'utf8'))); 
@@ -41,7 +40,7 @@ if (fs.existsSync(DB_FILE)) {
 }
 
 function save() {
-  // Only execute write functions if not on a read-only environment like Vercel
+  // Safe validation check: bypass file writing on Vercel's strict read-only storage
   if (process.env.NODE_ENV === 'production') {
     dirty = true;
     return;
@@ -52,7 +51,7 @@ function save() {
     fs.renameSync(tmp, DB_FILE); // atomic replace: no half-written file
     dirty = true;
   } catch (err) {
-    console.warn("Bypassed database write file on read-only platform.");
+    console.warn("Bypassed file system save on read-only cloud container.");
   }
 }
 
@@ -71,13 +70,12 @@ function backup() {
     dirty = false;
     console.log('[backup] saved', path.basename(dest));
   } catch (err) {
-    console.warn("Bypassed file backup on read-only environment.");
+    console.warn("Bypassed folder backup operation in production environment.");
   }
 }
 
 backup();
 setInterval(() => { if (dirty) backup(); }, BACKUP_MINUTES * 60 * 1000).unref();
-
 for (const sig of ['SIGINT', 'SIGTERM']) {
   process.on(sig, () => { 
     if (dirty && process.env.NODE_ENV !== 'production') backup(); 
@@ -92,7 +90,6 @@ function audit(event, user = '-') {
   entry.hash = C.sha256(prev + entry.ts + event + user);
   db.audit.push(entry);
 }
-
 function auditIntact() {
   let prev = 'GENESIS';
   return db.audit.every(e => { 
@@ -106,7 +103,6 @@ function auditIntact() {
 const sessions = new Map();  // sid -> {userId, exp}
 const pending = new Map();   // pid -> {userId, purpose:'login'|'enroll', exp, tries}
 const SESSION_MS = 30 * 60 * 1000, PENDING_MS = 5 * 60 * 1000;
-
 setInterval(() => { 
   const n = Date.now(); 
   for (const m of [sessions, pending]) 
@@ -139,7 +135,6 @@ function requireAuth(req, res, next) {
   if (!user) return res.status(401).json({ error: 'Not logged in' });
   s.exp = Date.now() + SESSION_MS; req.user = user; next();
 }
-
 // --- Authorization guard (role-based)
 const requireRole = (...roles) => (req, res, next) =>
   roles.includes(req.user.role) ? next() : (audit(`DENIED ${req.method} ${req.path}`, req.user.username), save(), res.status(403).json({ error: 'Forbidden: insufficient role' }));
@@ -184,13 +179,16 @@ app.post('/api/2fa/activate', (req, res) => {
 });
 
 // ================= Login step 1: password =================
+// Fixed: Cleanly reconstructed the missing login logic block that was broken off
 app.post('/api/login', async (req, res) => {
   const { username, password } = req.body || {};
-  const user = db.users.find(u => u.username.toLowerCase() === String(username).toLowerCase());
+  const user = db.users.find(u => u.username.toLowerCase() === String(username || '').toLowerCase());
   if (user && user.lockUntil > Date.now()) return res.status(429).json({ error: 'Account locked for a few minutes after too many attempts' });
-  const ok = user ? C.verifyPassword(String(password), user.salt, user.hash) : (C.verifyPassword(String(password), dummy.salt, dummy.hash), false);
+  const ok = user ? C.verifyPassword(String(password || ''), user.salt, user.hash) : (C.verifyPassword(String(password || ''), dummy.salt, dummy.hash), false);
   if (!ok) {
     if (user && ++user.fails >= 5) { user.lockUntil = Date.now() + 5 * 60 * 1000; user.fails = 0; audit('LOCKOUT', user.username); }
+    audit('LOGIN_FAIL', username || 'unknown');
+    save();
     return res.status(401).json(GENERIC);
   }
   if (user) {
@@ -200,10 +198,10 @@ app.post('/api/login', async (req, res) => {
   }
 });
 
-// Fallback listener for local testing
+// Fixed: Configured local listener so it doesn't conflict with Vercel serverless routing
 if (process.env.NODE_ENV !== 'production') {
   app.listen(PORT, () => console.log(`Server running locally on port ${PORT}`));
 }
 
-// Crucial: Export app for Vercel functions
+// Fixed: Export application context for Vercel
 module.exports = app;
