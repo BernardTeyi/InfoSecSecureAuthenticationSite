@@ -1,0 +1,9 @@
+{
+  "name": "secure-auth",
+  "version": "1.0.0",
+  "description": "Login system: salted+peppered passwords, TOTP 2FA, role-based access, encrypted DB, auto-backup",
+  "main": "server.js",
+  "scripts": { "start": "node server.js", "restore": "node restore.js" },
+  "dependencies": { "express": "^4.19.2", "qrcode": "^1.5.3" },
+  "engines": { "node": ">=18" }
+}
