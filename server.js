@@ -82,7 +82,9 @@ function requireAuth(req, res, next) {
 const cleanName = u => typeof u === 'string' ? u.normalize('NFKC').replace(/[\u200B-\u200D\u2060\uFEFF]/g, '').trim() : u;
 
 // FIXED COMPLETED: Fixed the username check pattern (\$ anchor is completely cleared of any stray backslashes)
-const validUsername = u => typeof u === 'string' && /^[A-Za-z0-9_]{3,20}\$/.test(u);
+const validUsername = u => typeof u === 'string' && /^[A-Za-z0-9_]{3,20}$/.test(u);
+
+
 
 const validPassword = p => typeof p === 'string' && p.length >= 10 && p.length <= 128 && /[a-z]/.test(p) && /[A-Z]/.test(p) && /\d/.test(p) && /[^A-Za-z0-9]/.test(p);
 const GENERIC = { error: 'Invalid username or password' };
