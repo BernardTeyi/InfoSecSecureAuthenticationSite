@@ -9,9 +9,10 @@ const PORT = process.env.PORT || 3000;
 const DATA = path.join('/tmp', 'data'); 
 const DB_FILE = path.join(DATA, 'db.enc');
 
-// Ensure database directory exists
 try {
-  if (!fs.existsSync(DATA)) fs.mkdirSync(DATA, { recursive: true });
+  if (!fs.existsSync(DATA)) {
+    fs.mkdirSync(DATA, { recursive: true });
+  }
 } catch (e) {
   console.error("Directory initialization bypassed:", e.message);
 }
@@ -68,8 +69,6 @@ app.use((req, res, next) => {
 });
 
 
-
-
 const cleanName = u => typeof u === 'string' ? u.normalize('NFKC').replace(/[\u200B-\u200D\u2060\uFEFF]/g, '').trim() : u;
 const validUsername = u => typeof u === 'string' && /^[A-Za-z0-9_]{3,20}\$/.test(u);
 const validPassword = p => typeof p === 'string' && p.length >= 10 && p.length <= 128 && /[a-z]/.test(p) && /[A-Z]/.test(p) && /\d/.test(p) && /[^A-Za-z0-9]/.test(p);
@@ -80,7 +79,6 @@ async function enrollPayload(user) {
   const uri = `otpauth://totp/SecureAuth:${encodeURIComponent(user.username)}?secret=${user.totpSecret}&issuer=SecureAuth&digits=6&period=30`;
   return { step: 'enroll', pendingId: newPending(user.id, 'enroll'), secret: user.totpSecret, qr: await QRCode.toDataURL(uri) };
 }
-
 
 
 
@@ -198,6 +196,7 @@ app.get('/', (req, res) => {
       <script>
         const state = { errorBox: document.getElementById('errorBox'), successBox: document.getElementById('successBox') };
 
+        // Notification wrapper logic
         function showMessage(type, text) {
           state.errorBox.style.display = type === 'error' ? 'block' : 'none';
           state.successBox.style.display = type === 'success' ? 'block' : 'none';
@@ -266,8 +265,7 @@ app.get('/', (req, res) => {
             });
             const data = await res.json();
             if (!res.ok) return showMessage('error', data.error || 'Authentication denied');
-            
-            if (data.step === '2fa') {
+if (data.step === '2fa') {
 document.getElementById('challengePendingId').value = data.pendingId;
 switchView('mfaChallenge');
 } else if (data.step === 'enroll') {
@@ -308,12 +306,10 @@ showMessage('success', 'Logged out safely.');
 }
 
 
+
 `);
 });
 
-
-### ⚙️ Piece 6: API Back-End Endpoint Routes
-This section processes request logic for accounts (Registration, Login Challenge, 2FA Device Bindings, Cookie Authentication Signing, and Logging out).
 
 ```javascript
 app.post('/api/register', async (req, res) => {
@@ -414,3 +410,5 @@ app.post('/api/logout', (req, res) => {
 });
 
 app.listen(PORT, () => console.log(`Secure Server running on port ${PORT}`));
+            
+
