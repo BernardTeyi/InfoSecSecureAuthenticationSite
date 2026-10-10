@@ -6,11 +6,9 @@ const QRCode = require('qrcode');
 const app = express();
 app.use(express.json());
 
-// In-Memory Databases (Safe for Serverless environments like Vercel)
 const users = [];
 const activeSessions = new Map();
 
-// --- Simplistic Helper Functions ---
 const hashPassword = (password, salt = crypto.randomBytes(16).toString('hex')) => {
   const hash = crypto.pbkdf2Sync(password, salt, 10000, 64, 'sha512').toString('hex');
   return { salt, hash };
@@ -24,7 +22,9 @@ const makeBase32Secret = () => {
 };
 
 const verify2FA = (secret, code) => {
+  if (!code || code.length !== 6) return false;
   const step = Math.floor(Date.now() / 30000);
+  
   const base32Decode = (str) => {
     const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ234567';
     const buf = Buffer.alloc(Math.ceil(str.length * 5 / 8));
@@ -47,7 +47,6 @@ const verify2FA = (secret, code) => {
   return expectedCode === code;
 };
 
-// ================= 1. FRONT-END INTERFACE ROUTE =================
 app.get('/', (req, res) => {
   res.send(`
     <!DOCTYPE html>
@@ -68,8 +67,6 @@ app.get('/', (req, res) => {
     <body>
       <div class="box">
         <div id="errMsg" class="error"></div>
-
-        <!-- LOGIN FORM -->
         <div id="loginView">
           <h2>Sign In</h2>
           <input type="text" id="loginUser" placeholder="Username">
@@ -77,8 +74,6 @@ app.get('/', (req, res) => {
           <button onclick="loginStep1()">Next</button>
           <div class="link" onclick="toggleView(false)">Create an account</div>
         </div>
-
-        <!-- REGISTRATION FORM -->
         <div id="registerView" class="hidden">
           <h2>Create Account</h2>
           <input type="text" id="regUser" placeholder="Username (3-20 chars)">
@@ -86,8 +81,6 @@ app.get('/', (req, res) => {
           <button onclick="register()">Register</button>
           <div class="link" onclick="toggleView(true)">Back to Sign In</div>
         </div>
-
-        <!-- 2FA VERIFICATION CHALLENGE -->
         <div id="mfaView" class="hidden">
           <h2>Enter 2FA Code</h2>
           <p id="mfaNote" style="font-size: 13px; color: #666;"></p>
@@ -98,77 +91,59 @@ app.get('/', (req, res) => {
           <input type="text" id="mfaCode" placeholder="6-digit code" maxlength="6">
           <button onclick="verifyMfaCode()">Verify & Login</button>
         </div>
-
-        <!-- SUCCESS LOGGED IN DASHBOARD -->
         <div id="dashView" class="hidden">
           <h2>Access Granted! 🎉</h2>
           <p>Logged in as: <b id="dashUser"></b></p>
           <button onclick="location.reload()" style="background: #333;">Logout</button>
         </div>
       </div>
-
       <script>
         let currentUsername = '';
         let isRegisteringMfa = false;
-
         function toggleView(showLogin) {
           document.getElementById('errMsg').style.display = 'none';
-          document.getElementById('loginView').style.className = showLogin ? 'box' : 'hidden';
           document.getElementById('loginView').classList.toggle('hidden', !showLogin);
           document.getElementById('registerView').classList.toggle('hidden', showLogin);
         }
-
         async function register() {
           const user = document.getElementById('regUser').value;
           const pass = document.getElementById('regPass').value;
           const res = await fetch('/api/register', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({user, pass}) });
           const data = await res.json();
-          
           if (!res.ok) return showError(data.error);
-          
           currentUsername = user;
           isRegisteringMfa = true;
           document.getElementById('mfaNote').innerText = "Scan this QR code with Google Authenticator before entering the code:";
           document.getElementById('qrImg').src = data.qr;
           document.getElementById('secretText').innerText = data.secret;
           document.getElementById('qrContainer').classList.remove('hidden');
-          
           document.getElementById('registerView').classList.add('hidden');
           document.getElementById('mfaView').classList.remove('hidden');
         }
-
         async function loginStep1() {
           const user = document.getElementById('loginUser').value;
           const pass = document.getElementById('loginPass').value;
           const res = await fetch('/api/login-step1', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({user, pass}) });
           const data = await res.json();
-          
           if (!res.ok) return showError(data.error);
-          
           currentUsername = user;
           isRegisteringMfa = false;
           document.getElementById('mfaNote').innerText = "Enter the 6-digit code from your Authenticator app:";
           document.getElementById('qrContainer').classList.add('hidden');
-          
           document.getElementById('loginView').classList.add('hidden');
           document.getElementById('mfaView').classList.remove('hidden');
         }
-
         async function verifyMfaCode() {
           const code = document.getElementById('mfaCode').value;
           const endpoint = isRegisteringMfa ? '/api/register-step2' : '/api/login-step2';
-          
           const res = await fetch(endpoint, { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({user: currentUsername, code}) });
           const data = await res.json();
-          
           if (!res.ok) return showError(data.error);
-          
           document.getElementById('dashUser').innerText = currentUsername;
           document.getElementById('mfaView').classList.add('hidden');
           document.getElementById('dashView').classList.remove('hidden');
           document.getElementById('errMsg').style.display = 'none';
         }
-
         function showError(txt) {
           const err = document.getElementById('errMsg');
           err.innerText = txt;
@@ -180,9 +155,6 @@ app.get('/', (req, res) => {
   `);
 });
 
-// ================= 2. BACK-END API ROUTES =================
-
-// Registration - Save user credentials placeholder
 app.post('/api/register', async (req, res) => {
   const { user, pass } = req.body;
   if (!user || user.length < 3 || user.length > 20) return res.status(400).json({ error: 'Username must be 3-20 characters.' });
@@ -193,12 +165,10 @@ app.post('/api/register', async (req, res) => {
   const uri = `otpauth://totp/SimpleAuth:${user}?secret=${secret}&issuer=SimpleAuth`;
   const qrDataUrl = await QRCode.toDataURL(uri);
 
-  // Temporary storage context before TOTP confirmation handshake
   activeSessions.set(user.toLowerCase(), { password: pass, secret });
   res.json({ secret, qr: qrDataUrl });
 });
 
-// Registration Confirmation - Verify initial 2FA device setup
 app.post('/api/register-step2', (req, res) => {
   const { user, code } = req.body;
   const session = activeSessions.get(user.toLowerCase());
@@ -212,7 +182,6 @@ app.post('/api/register-step2', (req, res) => {
   res.json({ success: true });
 });
 
-// Login Step 1 - Check username and password credentials
 app.post('/api/login-step1', (req, res) => {
   const { user, pass } = req.body;
   const matchedUser = users.find(u => u.username === user.toLowerCase());
@@ -224,14 +193,15 @@ app.post('/api/login-step1', (req, res) => {
   res.json({ nextStep: '2fa' });
 });
 
-// Login Step 2 - Verify active TOTP key code matches profile
 app.post('/api/login-step2', (req, res) => {
-const { user, code } = req.body;
-const matchedUser = users.find(u => u.username === user.toLowerCase());
-if (!matchedUser) return res.status(401).json({ error: 'Session error.' });
-if (!verify2FA(matchedUser.secret, code)) return res.status(401).json({ error: 'Invalid 2FA code.' });
-res.json({ success: true });
+  const { user, code } = req.body;
+  const matchedUser = users.find(u => u.username === user.toLowerCase());
+  if (!matchedUser) return res.status(401).json({ error: 'Session error.' });
+
+  if (!verify2FA(matchedUser.secret, code)) return res.status(401).json({ error: 'Invalid 2FA code.' });
+
+  res.json({ success: true });
 });
-// Start Server Context Instance
+
 const PORT_NUM = process.env.PORT || 3000;
-app.listen(PORT_NUM, () => console.log(Server running on port ${PORT_NUM}));
+app.listen(PORT_NUM, () => console.log(`Server running on port ${PORT_NUM}`));
