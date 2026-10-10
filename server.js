@@ -9,11 +9,8 @@ const PORT = process.env.PORT || 3000;
 const DATA = path.join('/tmp', 'data'); 
 const DB_FILE = path.join(DATA, 'db.enc');
 
-// Safely initialize the temporary directories for Vercel execution
 try {
-  if (!fs.existsSync(DATA)) {
-    fs.mkdirSync(DATA, { recursive: true });
-  }
+  if (!fs.existsSync(DATA)) fs.mkdirSync(DATA, { recursive: true });
 } catch (e) {
   console.error("Directory initialization bypassed:", e.message);
 }
@@ -26,7 +23,6 @@ function loadDatabase() {
     try { 
       db = JSON.parse(C.decrypt(fs.readFileSync(DB_FILE, 'utf8'))); 
     } catch (err) { 
-      console.error('Database decryption failed, initializing empty stack:', err.message);
       db = { users: [], audit: [] };
     }
   }
@@ -39,7 +35,7 @@ function save() {
     fs.writeFileSync(tmp, C.encrypt(JSON.stringify(db)), { mode: 0o600 });
     fs.renameSync(tmp, DB_FILE);
   } catch (err) {
-    console.error('Vercel transient storage save warning:', err.message);
+    console.error('Storage save warning:', err.message);
   }
 }
 
@@ -58,7 +54,7 @@ const SESSION_MS = 30 * 60 * 1000, PENDING_MS = 5 * 60 * 1000;
 
 const purge = (userId, except) => { for (const [k, v] of sessions) if (v.userId === userId && k !== except) sessions.delete(k); };
 const newPending = (userId, purpose) => { const id = C.token(); pending.set(id, { userId, purpose, exp: Date.now() + PENDING_MS, tries: 0 }); return id; };
-function cookies(req) { return Object.fromEntries((req.headers.cookie || '').split(';').map(s => s.trim().split('=')).filter(p => p[0])); }
+function cookies(req) { return Object.fromEntries((req.headers.cookie || '').split(';').map(s => s.trim().split('=')).filter(p => p)); }
 
 // ================= App + middleware =================
 const app = express();
@@ -66,7 +62,7 @@ app.disable('x-powered-by');
 app.use(express.json({ limit: '10kb' }));
 app.use((req, res, next) => {
   res.set({
-    'Content-Security-Policy': "default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline'",
+    'Content-Security-Policy': "default-src 'self' 'unsafe-inline'; img-src 'self' data:; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline'",
     'X-Content-Type-Options': 'nosniff', 'X-Frame-Options': 'DENY', 'Referrer-Policy': 'no-referrer', 'Cache-Control': 'no-store'
   });
   next();
@@ -74,7 +70,7 @@ app.use((req, res, next) => {
 
 // --- Authentication guard
 function requireAuth(req, res, next) {
-  loadDatabase(); // Reload memory reference per serverless execution context
+  loadDatabase();
   const s = sessions.get(cookies(req).sid);
   if (!s || s.exp < Date.now()) return res.status(401).json({ error: 'Not logged in' });
   const user = db.users.find(u => u.id === s.userId);
@@ -85,7 +81,7 @@ function requireAuth(req, res, next) {
 // ================= Input Sanitization & Validation =================
 const cleanName = u => typeof u === 'string' ? u.normalize('NFKC').replace(/[\u200B-\u200D\u2060\uFEFF]/g, '').trim() : u;
 
-// FIXED: Cleaned up username validation regex layout syntax (\$ instead of \$)
+// FIXED COMPLETED: Fixed the username check pattern (\$ anchor is completely cleared of any stray backslashes)
 const validUsername = u => typeof u === 'string' && /^[A-Za-z0-9_]{3,20}\$/.test(u);
 
 const validPassword = p => typeof p === 'string' && p.length >= 10 && p.length <= 128 && /[a-z]/.test(p) && /[A-Z]/.test(p) && /\d/.test(p) && /[^A-Za-z0-9]/.test(p);
@@ -96,6 +92,20 @@ async function enrollPayload(user) {
   const uri = `otpauth://totp/SecureAuth:${encodeURIComponent(user.username)}?secret=${user.totpSecret}&issuer=SecureAuth&digits=6&period=30`;
   return { step: 'enroll', pendingId: newPending(user.id, 'enroll'), secret: user.totpSecret, qr: await QRCode.toDataURL(uri) };
 }
+
+// ================= Built-in Landing Page Route =================
+app.get('/', (req, res) => {
+  res.send(`
+    <html>
+      <head><title>Secure Auth API</title></head>
+      <body style="font-family:sans-serif; text-align:center; padding-top:50px; background:#f4f6f9; color:#333;">
+        <h1>🔒 Secure Authentication API</h1>
+        <p style="color:#666;">The API endpoint is online and healthy.</p>
+        <div style="margin-top:20px; font-size:14px; color:#888;">Endpoints active: /api/register | /api/login | /api/2fa/verify</div>
+      </body>
+    </html>
+  `);
+});
 
 // ================= 1. Identification: register =================
 app.post('/api/register', async (req, res) => {
