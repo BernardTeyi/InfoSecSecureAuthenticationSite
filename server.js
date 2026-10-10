@@ -1,3 +1,13 @@
+
+const validUsername = u => typeof u === 'string' && /^[A-Za-z0-9_]{3,20}$/.test(u);
+
+
+
+
+
+
+// AFTER (Fixed - Copy this line):
+const validUsername = u => typeof u === 'string' && /^[A-Za-z0-9_]{3,20}$/.test(u);
 'use strict';
 const express = require('express');
 const fs = require('fs');
@@ -120,7 +130,7 @@ const cleanName = u =>
 
 // FIXED: Removed the stray backslash before the '\$' anchor so usernames match correctly
 const validUsername = u => 
-  typeof u === 'string' && /^[A-Za-z0-9_]{3,20}\$/.test(u);
+  typeof u === 'string' && /^[A-Za-z0-9_]{3,20}$/.test(u);
 
 const validPassword = p => 
   typeof p === 'string' && 
@@ -145,7 +155,7 @@ async function enrollPayload(user) {
 app.post('/api/register', async (req, res) => {
   const { password } = req.body || {};
   const username = cleanName(req.body?.username);
-  if (!validUsername(username)) return res.status(400).json({ error: 'Username must be 3-20 characters: letters, numbers or underscore (no spaces)' });
+  if (!validUsername(username)) return res.status(400).json({ error: 'Username must be 5-20 characters: letters, numbers or underscore (no spaces)' });
   if (!validPassword(password)) return res.status(400).json({ error: 'Password: 10+ characters with upper, lower, number and symbol' });
   if (db.users.some(u => u.username.toLowerCase() === username.toLowerCase())) return res.status(409).json({ error: 'Username already taken' });
   
