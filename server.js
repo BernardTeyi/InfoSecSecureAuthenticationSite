@@ -5,13 +5,19 @@ const path = require('path');
 const QRCode = require('qrcode');
 const C = require('./crypto-utils');
 
+// CHANGE THIS SECTION AT THE TOP:
 const PORT = process.env.PORT || 3000;
 const BACKUP_MINUTES = Number(process.env.BACKUP_MINUTES || 60);
 const KEEP_BACKUPS = 10;
-const DATA = path.join(__dirname, 'data');
+
+// FIXED: Use Vercel's temporary writeable directory
+const DATA = path.join('/tmp', 'data'); 
 const BACKUPS = path.join(DATA, 'backups');
 const DB_FILE = path.join(DATA, 'db.enc');
 fs.mkdirSync(BACKUPS, { recursive: true });
+
+
+
 
 // ================= Encrypted database =================
 let db = { users: [], audit: [] };
