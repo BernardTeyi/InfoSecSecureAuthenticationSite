@@ -1,8 +1,9 @@
+'use strict';
 const fs = require('fs');
 const crypto = require('crypto');
 
 function loadSecrets() {
-  // If keys are provided by Vercel environment variables, use them directly
+  // If keys are provided by environment variables, use them directly
   if (process.env.ENCRYPTION_KEY) {
     return {
       encryptionKey: Buffer.from(process.env.ENCRYPTION_KEY, 'hex'),
@@ -46,6 +47,7 @@ module.exports = {
   },
   decrypt: (text) => {
     const textParts = text.split(':');
+    if (textParts.length < 2) throw new Error("Invalid cipher format");
     const iv = Buffer.from(textParts.shift(), 'hex');
     const encryptedText = Buffer.from(textParts.join(':'), 'hex');
     const decipher = crypto.createDecipheriv('aes-256-cbc', secrets.encryptionKey, iv);
@@ -76,15 +78,26 @@ module.exports = {
     return crypto.randomBytes(bytes).toString('hex');
   },
   newTotpSecret: () => {
-    // Generates a base32 style configuration secret for authenticator apps
     return crypto.randomBytes(10).toString('hex'); 
   },
+  
+  // FIXED: Now properly calculates and checks the 6-digit passcode
   checkTotp: (secret, code, lastStep) => {
-    // Simplified mockup TOTP validator loop matching your schema requirements
-    if (!code) return false;
+    if (!code || code.length !== 6) return false;
+    
     const computedStep = Math.floor(Date.now() / 30000);
     if (computedStep <= lastStep) return false;
-    return computedStep; 
+    
+    // Generate valid target code using a standard local HMAC time validation calculation
+    const stepBuffer = Buffer.alloc(8);
+    stepBuffer.writeUInt32BE(computedStep, 4);
+    
+    const hmac = crypto.createHmac('sha1', secret).update(stepBuffer).digest();
+    const offset = hmac[hmac.length - 1] & 0xf;
+    const codeInt = (hmac.readUInt32BE(offset) & 0x7fffffff) % 1000000;
+    const expectedCode = String(codeInt).padStart(6, '0');
+    
+    return expectedCode === code ? computedStep : false;
   },
 
   jwtSecret: secrets.jwtSecret
