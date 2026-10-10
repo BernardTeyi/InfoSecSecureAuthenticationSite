@@ -161,7 +161,7 @@ summary{cursor:pointer;color:var(--cyan);font-weight:600;font-size:.9rem}
       <div class="hint good hidden" id="login-note"><span class="ico">✅</span><div><b>Two-factor is now active.</b> Log in below to finish. You will be asked for a code from your app.</div></div>
       <div class="hint"><span class="ico">💡</span><div><b>What's happening:</b> step 1 of 2. Enter your username and password.<br><b>Next:</b> you'll type a 6-digit code from your authenticator app.</div></div>
       <label for="l-user">Username</label>
-      <input id="l-user" autocomplete="username" placeholder="your_username">
+      <input id="l-user" autocomplete="username" autocapitalize="none" autocorrect="off" spellcheck="false" placeholder="your_username">
       <label for="l-pass">Password</label>
       <div class="field"><input id="l-pass" type="password" autocomplete="current-password" placeholder="••••••••••"><button class="eye" type="button" data-eye="l-pass" title="Show / hide">👁️</button></div>
       <button class="btn primary block" id="b-login">Continue →</button>
@@ -177,7 +177,7 @@ summary{cursor:pointer;color:var(--cyan);font-weight:600;font-size:.9rem}
       <p class="sub">It takes about a minute.</p>
       <div class="hint"><span class="ico">💡</span><div><b>What's happening:</b> you choose a username and a strong password. Your password is salted, peppered and hashed, so it is never stored as text.<br><b>Next:</b> you'll scan a QR code to turn on two-factor protection.<br><small>The very first account on a new system becomes the administrator.</small></div></div>
       <label for="r-user">Username <small style="font-weight:400;color:var(--mut)">(3-20 letters, numbers or _)</small></label>
-      <input id="r-user" autocomplete="username" placeholder="choose_a_name" maxlength="20">
+      <input id="r-user" autocomplete="username" autocapitalize="none" autocorrect="off" spellcheck="false" placeholder="choose_a_name" maxlength="20">
       <label for="r-pass">Password</label>
       <div class="field"><input id="r-pass" type="password" autocomplete="new-password" placeholder="Make it long and unique"><button class="eye" type="button" data-eye="r-pass" title="Show / hide">👁️</button></div>
       <div class="bar"><i id="r-bar"></i></div>
@@ -425,8 +425,8 @@ function startStep(d) {
 }
 async function submit(btn, fn) { busy(btn, true); try { await fn(); } catch (e) { toast(e.message, 'bad'); } finally { busy(btn, false); } }
 
-$('b-login').onclick = () => submit($('b-login'), async () => { const d = await api('/api/login', 'POST', { username: $('l-user').value, password: $('l-pass').value }); $('l-pass').value = ''; startStep(d); });
-$('b-register').onclick = () => submit($('b-register'), async () => { const d = await api('/api/register', 'POST', { username: $('r-user').value, password: $('r-pass').value }); $('r-pass').value = ''; startStep(d); });
+$('b-login').onclick = () => submit($('b-login'), async () => { const d = await api('/api/login', 'POST', { username: $('l-user').value.trim(), password: $('l-pass').value }); $('l-pass').value = ''; startStep(d); });
+$('b-register').onclick = () => submit($('b-register'), async () => { const d = await api('/api/register', 'POST', { username: $('r-user').value.trim(), password: $('r-pass').value }); $('r-pass').value = ''; startStep(d); });
 $('b-enroll').onclick = () => submit($('b-enroll'), async () => { await api('/api/2fa/activate', 'POST', { pendingId, code: $('e-code').value }); pendingId = null; loginNote = true; go('login'); toast('Two-factor activated 🎉', 'ok'); });
 $('b-2fa').onclick = () => submit($('b-2fa'), async () => { await api('/api/login/2fa', 'POST', { pendingId, code: $('t-code').value }); pendingId = null; me = await api('/api/me'); toast(`Welcome, ${me.username}!`, 'ok'); go('dashboard'); });
 $('b-copy').onclick = () => { navigator.clipboard?.writeText($('secret').textContent).then(() => toast('Key copied', 'ok'), () => toast('Copy failed, select it manually', 'bad')); };
