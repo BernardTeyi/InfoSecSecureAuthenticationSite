@@ -77,27 +77,58 @@ module.exports = {
   token: (bytes = 16) => {
     return crypto.randomBytes(bytes).toString('hex');
   },
+
+  // FIXED: Generates standard Base32 text secrets readable by authenticator apps
   newTotpSecret: () => {
-    return crypto.randomBytes(10).toString('hex'); 
+    const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ234567';
+    let secret = '';
+    const bytes = crypto.randomBytes(10);
+    for (let i = 0; i < bytes.length; i++) {
+      secret += chars[bytes[i] % chars.length];
+    }
+    return secret;
   },
   
-  // FIXED: Now properly calculates and checks the 6-digit passcode
+  // FIXED: Standard RFC 4226 TOTP matching algorithm with lookup window tolerances
   checkTotp: (secret, code, lastStep) => {
     if (!code || code.length !== 6) return false;
     
     const computedStep = Math.floor(Date.now() / 30000);
     if (computedStep <= lastStep) return false;
-    
-    // Generate valid target code using a standard local HMAC time validation calculation
-    const stepBuffer = Buffer.alloc(8);
-    stepBuffer.writeUInt32BE(computedStep, 4);
-    
-    const hmac = crypto.createHmac('sha1', secret).update(stepBuffer).digest();
-    const offset = hmac[hmac.length - 1] & 0xf;
-    const codeInt = (hmac.readUInt32BE(offset) & 0x7fffffff) % 1000000;
-    const expectedCode = String(codeInt).padStart(6, '0');
-    
-    return expectedCode === code ? computedStep : false;
+
+    // Internal Base32 decoding mapping layer
+    const base32Decode = (str) => {
+      const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ234567';
+      const buf = Buffer.alloc(Math.ceil(str.length * 5 / 8));
+      let bits = 0, value = 0, index = 0;
+      for (let i = 0; i < str.length; i++) {
+        const val = chars.indexOf(str[i].toUpperCase());
+        if (val === -1) continue;
+        value = (value << 5) | val;
+        bits += 5;
+        if (bits >= 8) {
+          buf[index++] = (value >> (bits - 8)) & 255;
+          bits -= 8;
+        }
+      }
+      return buf.subarray(0, index);
+    };
+
+    // Evaluate time drift window windows to smooth out client/server discrepancies (-1 to +1 slots)
+    for (let window = -1; window <= 1; window++) {
+      const step = computedStep + window;
+      const stepBuffer = Buffer.alloc(8);
+      stepBuffer.writeUInt32BE(step, 4);
+      
+      const keyBuffer = base32Decode(secret);
+      const hmac = crypto.createHmac('sha1', keyBuffer).update(stepBuffer).digest();
+      const offset = hmac[hmac.length - 1] & 0xf;
+      const codeInt = (hmac.readUInt32BE(offset) & 0x7fffffff) % 1000000;
+      const expectedCode = String(codeInt).padStart(6, '0');
+      
+      if (expectedCode === code) return step;
+    }
+    return false;
   },
 
   jwtSecret: secrets.jwtSecret
