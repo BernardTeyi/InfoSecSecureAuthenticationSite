@@ -17,7 +17,6 @@ try {
   console.error("Directory initialization bypassed:", e.message);
 }
 
-
 let db = { users: [], audit: [] };
 
 function loadDatabase() {
@@ -48,7 +47,6 @@ function audit(event, user = '-') {
   db.audit.push(entry);
 }
 
-
 const sessions = new Map();  
 const pending = new Map();   
 const SESSION_MS = 30 * 60 * 1000, PENDING_MS = 5 * 60 * 1000;
@@ -68,9 +66,8 @@ app.use((req, res, next) => {
   next();
 });
 
-
 const cleanName = u => typeof u === 'string' ? u.normalize('NFKC').replace(/[\u200B-\u200D\u2060\uFEFF]/g, '').trim() : u;
-const validUsername = u => typeof u === 'string' && /^[A-Za-z0-9_]{3,20}\$/.test(u);
+const validUsername = u => typeof u === 'string' && /^[A-Za-z0-9_]{3,20}$/.test(u);
 const validPassword = p => typeof p === 'string' && p.length >= 10 && p.length <= 128 && /[a-z]/.test(p) && /[A-Z]/.test(p) && /\d/.test(p) && /[^A-Za-z0-9]/.test(p);
 const GENERIC = { error: 'Invalid username or password' };
 const dummy = C.hashPassword('dummy-password');
@@ -79,9 +76,6 @@ async function enrollPayload(user) {
   const uri = `otpauth://totp/SecureAuth:${encodeURIComponent(user.username)}?secret=${user.totpSecret}&issuer=SecureAuth&digits=6&period=30`;
   return { step: 'enroll', pendingId: newPending(user.id, 'enroll'), secret: user.totpSecret, qr: await QRCode.toDataURL(uri) };
 }
-
-
-
 
 app.get('/', (req, res) => {
   res.send(`
@@ -196,75 +190,68 @@ app.get('/', (req, res) => {
       <script>
         const state = { errorBox: document.getElementById('errorBox'), successBox: document.getElementById('successBox') };
 
-        // Notification wrapper logic
         function showMessage(type, text) {
           state.errorBox.style.display = type === 'error' ? 'block' : 'none';
           state.successBox.style.display = type === 'success' ? 'block' : 'none';
           if(type === 'error') state.errorBox.innerText = text;
-          if(type === 'success') state.successBox.innerText = text;
-        }
-
-        function clearMessages() { showMessage('none'); }
-
-        function switchView(viewId) {
-          clearMessages();
-          ['loginView', 'registerView', 'enrollView', 'mfaChallengeView', 'dashboardView'].forEach(id => {
-            document.getElementById(id).classList.add('hidden');
-          });
-          document.getElementById(viewId + 'View').classList.remove('hidden');
-        }
-
-        async function handleRegister(e) {
-          e.preventDefault();
-          clearMessages();
-          try {
-            const res = await fetch('/api/register', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ username: document.getElementById('regUser').value, password: document.getElementById('regPass').value })
-            });
-            const data = await res.json();
-            if (!res.ok) return showMessage('error', data.error || 'Registration rejected');
-            
-            document.getElementById('qrImage').src = data.qr;
-            document.getElementById('secretKey').innerText = data.secret;
-            document.getElementById('enrollPendingId').value = data.pendingId;
-            switchView('enroll');
-            showMessage('success', 'Account registered! Scan your QR code below to proceed.');
-          } catch (err) { showMessage('error', 'Network failure communicating with engine.'); }
-        }
-
-        async function handle2FAActivate(e) {
-          e.preventDefault();
-          clearMessages();
-          try {
-            const res = await fetch('/api/2fa/activate', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ pendingId: document.getElementById('enrollPendingId').value, code: document.getElementById('enrollCode').value })
-            });
-            if (!res.ok) {
-              const data = await res.json();
-              return showMessage('error', data.error || 'Invalid 2FA token');
-            }
-            showMessage('success', '2FA Device verification complete! You can now log in.');
-            switchView('login');
-            document.getElementById('registerForm').reset();
-            document.getElementById('enrollForm').reset();
-          } catch (err) { showMessage('error', 'Network connection anomaly detected.'); }
-        }
-
-        async function handleLogin(e) {
-          e.preventDefault();
-          clearMessages();
-          try {
-            const res = await fetch('/api/login', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ username: document.getElementById('loginUser').value, password: document.getElementById('loginPass').value })
-            });
-            const data = await res.json();
-            if (!res.ok) return showMessage('error', data.error || 'Authentication denied');
+if(type === 'success') state.successBox.innerText = text;
+}
+function clearMessages() { showMessage('none'); }
+function switchView(viewId) {
+clearMessages();
+['loginView', 'registerView', 'enrollView', 'mfaChallengeView', 'dashboardView'].forEach(id => {
+document.getElementById(id).classList.add('hidden');
+});
+document.getElementById(viewId + 'View').classList.remove('hidden');
+}
+async function handleRegister(e) {
+e.preventDefault();
+clearMessages();
+try {
+const res = await fetch('/api/register', {
+method: 'POST',
+headers: { 'Content-Type': 'application/json' },
+body: JSON.stringify({ username: document.getElementById('regUser').value, password: document.getElementById('regPass').value })
+});
+const data = await res.json();
+if (!res.ok) return showMessage('error', data.error || 'Registration rejected');
+document.getElementById('qrImage').src = data.qr;
+document.getElementById('secretKey').innerText = data.secret;
+document.getElementById('enrollPendingId').value = data.pendingId;
+switchView('enroll');
+showMessage('success', 'Account registered! Scan your QR code below to proceed.');
+} catch (err) { showMessage('error', 'Network failure communicating with engine.'); }
+}
+async function handle2FAActivate(e) {
+e.preventDefault();
+clearMessages();
+try {
+const res = await fetch('/api/2fa/activate', {
+method: 'POST',
+headers: { 'Content-Type': 'application/json' },
+body: JSON.stringify({ pendingId: document.getElementById('enrollPendingId').value, code: document.getElementById('enrollCode').value })
+});
+if (!res.ok) {
+const data = await res.json();
+return showMessage('error', data.error || 'Invalid 2FA token');
+}
+showMessage('success', '2FA Device verification complete! You can now log in.');
+switchView('login');
+document.getElementById('registerForm').reset();
+document.getElementById('enrollForm').reset();
+} catch (err) { showMessage('error', 'Network connection anomaly detected.'); }
+}
+async function handleLogin(e) {
+e.preventDefault();
+clearMessages();
+try {
+const res = await fetch('/api/login', {
+method: 'POST',
+headers: { 'Content-Type': 'application/json' },
+body: JSON.stringify({ username: document.getElementById('loginUser').value, password: document.getElementById('loginPass').value })
+});
+const data = await res.json();
+if (!res.ok) return showMessage('error', data.error || 'Authentication denied');
 if (data.step === '2fa') {
 document.getElementById('challengePendingId').value = data.pendingId;
 switchView('mfaChallenge');
@@ -309,106 +296,83 @@ showMessage('success', 'Logged out safely.');
 
 `);
 });
-
-
-```javascript
 app.post('/api/register', async (req, res) => {
-  loadDatabase();
-  const { password } = req.body || {};
-  const username = cleanName(req.body?.username);
-  
-  if (!validUsername(username)) return res.status(400).json({ error: 'Username must be 3-20 characters: letters, numbers or underscore (no spaces)' });
-  if (!validPassword(password)) return res.status(400).json({ error: 'Password: 10+ characters with upper, lower, number and symbol' });
-  if (db.users.some(u => u.username.toLowerCase() === username.toLowerCase())) return res.status(409).json({ error: 'Username already taken' });
-  
-  const { salt, hash } = C.hashPassword(password);
-  const user = {
-    id: C.token(8), username, salt, hash,
-    role: db.users.length === 0 ? 'admin' : 'user',
-    totpSecret: C.newTotpSecret(), totpEnabled: false, lastStep: 0, fails: 0, lockUntil: 0, created: new Date().toISOString()
-  };
-  db.users.push(user); audit('REGISTER', username); save();
-  res.json(await enrollPayload(user));
+loadDatabase();
+const { password } = req.body || {};
+const username = cleanName(req.body?.username);
+if (!validUsername(username)) return res.status(400).json({ error: 'Username must be 3-20 characters: letters, numbers or underscore (no spaces)' });
+if (!validPassword(password)) return res.status(400).json({ error: 'Password: 10+ characters with upper, lower, number and symbol' });
+if (db.users.some(u => u.username.toLowerCase() === username.toLowerCase())) return res.status(409).json({ error: 'Username already taken' });
+const { salt, hash } = C.hashPassword(password);
+const user = {
+id: C.token(8), username, salt, hash,
+role: db.users.length === 0 ? 'admin' : 'user',
+totpSecret: C.newTotpSecret(), totpEnabled: false, lastStep: 0, fails: 0, lockUntil: 0, created: new Date().toISOString()
+};
+db.users.push(user); audit('REGISTER', username); save();
+res.json(await enrollPayload(user));
 });
-
 app.post('/api/2fa/activate', (req, res) => {
-  loadDatabase();
-  const p = pending.get(req.body?.pendingId);
-  if (!p || p.purpose !== 'enroll' || p.exp < Date.now()) return res.status(400).json({ error: 'Session expired, log in again' });
-  const user = db.users.find(u => u.id === p.userId);
-  if (!user) return res.status(400).json({ error: 'Session expired, log in again' });
-  
-  const step = C.checkTotp(user.totpSecret, req.body.code, user.lastStep);
-  if (!step) return res.status(401).json({ error: 'Wrong code' });
-  
-  user.totpEnabled = true; user.lastStep = step; pending.delete(req.body.pendingId);
-  audit('2FA_ENABLED', user.username); save();
-  res.json({ ok: true });
+loadDatabase();
+const p = pending.get(req.body?.pendingId);
+if (!p || p.purpose !== 'enroll' || p.exp < Date.now()) return res.status(400).json({ error: 'Session expired, log in again' });
+const user = db.users.find(u => u.id === p.userId);
+if (!user) return res.status(400).json({ error: 'Session expired, log in again' });
+const step = C.checkTotp(user.totpSecret, req.body.code, user.lastStep);
+if (!step) return res.status(401).json({ error: 'Wrong code' });
+user.totpEnabled = true; user.lastStep = step; pending.delete(req.body.pendingId);
+audit('2FA_ENABLED', user.username); save();
+res.json({ ok: true });
 });
-
 app.post('/api/login', async (req, res) => {
-  loadDatabase();
-  const { password } = req.body || {};
-  const username = cleanName(req.body?.username);
-  const user = db.users.find(u => u.username.toLowerCase() === username.toLowerCase());
-  
-  if (!user) {
-    C.verifyPassword(password, dummy.salt, dummy.hash);
-    return res.status(401).json(GENERIC);
-  }
-  if (user.lockUntil > Date.now()) {
-    return res.status(423).json({ error: 'Account temporarily locked. Try again later.' });
-  }
-
-  const isValid = C.verifyPassword(password, user.salt, user.hash);
-  if (!isValid) {
-    user.fails += 1;
-    if (user.fails >= 5) {
-      user.lockUntil = Date.now() + 15 * 60 * 1000;
-      audit('ACCOUNT_LOCKED', user.username);
-    }
-    save();
-    return res.status(401).json(GENERIC);
-  }
-
-  user.fails = 0; user.lockUntil = 0; save();
-
-  if (user.totpEnabled) {
-    const pid = newPending(user.id, 'login');
-    return res.json({ step: '2fa', pendingId: pid });
-  }
-  res.json(await enrollPayload(user));
+loadDatabase();
+const { password } = req.body || {};
+const username = cleanName(req.body?.username);
+const user = db.users.find(u => u.username.toLowerCase() === username.toLowerCase());
+if (!user) {
+C.verifyPassword(password, dummy.salt, dummy.hash);
+return res.status(401).json(GENERIC);
+}
+if (user.lockUntil > Date.now()) {
+return res.status(423).json({ error: 'Account temporarily locked. Try again later.' });
+}
+const isValid = C.verifyPassword(password, user.salt, user.hash);
+if (!isValid) {
+user.fails += 1;
+if (user.fails >= 5) {
+user.lockUntil = Date.now() + 15 * 60 * 1000;
+audit('ACCOUNT_LOCKED', user.username);
+}
+save();
+return res.status(401).json(GENERIC);
+}
+user.fails = 0; user.lockUntil = 0; save();
+if (user.totpEnabled) {
+const pid = newPending(user.id, 'login');
+return res.json({ step: '2fa', pendingId: pid });
+}
+res.json(await enrollPayload(user));
 });
-
 app.post('/api/2fa/verify', (req, res) => {
-  loadDatabase();
-  const p = pending.get(req.body?.pendingId);
-  if (!p || p.purpose !== 'login' || p.exp < Date.now()) return res.status(401).json({ error: 'Session expired' });
-  
-  const user = db.users.find(u => u.id === p.userId);
-  if (!user) return res.status(401).json({ error: 'Session expired' });
-  
-  const step = C.checkTotp(user.totpSecret, req.body.code, user.lastStep);
-  if (!step) return res.status(401).json({ error: 'Wrong code' });
-  
-  user.lastStep = step; save(); pending.delete(req.body.pendingId);
-  purge(user.id); 
-  
-  const sid = C.token();
-  sessions.set(sid, { userId: user.id, exp: Date.now() + SESSION_MS });
-  audit('LOGIN_SUCCESS', user.username);
-  
-  res.setHeader('Set-Cookie', `sid=${sid}; HttpOnly; Secure; SameSite=Strict; Path=/; Max-Age=${30 * 60}`);
-  res.json({ ok: true, role: user.role, username: user.username });
+loadDatabase();
+const p = pending.get(req.body?.pendingId);
+if (!p || p.purpose !== 'login' || p.exp < Date.now()) return res.status(401).json({ error: 'Session expired' });
+const user = db.users.find(u => u.id === p.userId);
+if (!user) return res.status(401).json({ error: 'Session expired' });
+const step = C.checkTotp(user.totpSecret, req.body.code, user.lastStep);
+if (!step) return res.status(401).json({ error: 'Wrong code' });
+user.lastStep = step; save(); pending.delete(req.body.pendingId);
+purge(user.id);
+const sid = C.token();
+sessions.set(sid, { userId: user.id, exp: Date.now() + SESSION_MS });
+audit('LOGIN_SUCCESS', user.username);
+res.setHeader('Set-Cookie', sid=${sid}; HttpOnly; Secure; SameSite=Strict; Path=/; Max-Age=${30 * 60});
+res.json({ ok: true, role: user.role, username: user.username });
 });
-
 app.post('/api/logout', (req, res) => {
-  const sid = cookies(req).sid;
-  if (sid) sessions.delete(sid);
-  res.setHeader('Set-Cookie', 'sid=; HttpOnly; Secure; SameSite=Strict; Path=/; Max-Age=0');
-  res.json({ ok: true });
+const sid = cookies(req).sid;
+if (sid) sessions.delete(sid);
+res.setHeader('Set-Cookie', 'sid=; HttpOnly; Secure; SameSite=Strict; Path=/; Max-Age=0');
+res.json({ ok: true });
 });
-
-app.listen(PORT, () => console.log(`Secure Server running on port ${PORT}`));
-            
-
+app.listen(PORT, () => console.log(Secure Server running on port ${PORT}));
