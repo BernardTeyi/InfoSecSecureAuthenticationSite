@@ -145,8 +145,19 @@ const requireRole = (...roles) => (req, res, next) =>
 // ================= Form Input Validators =================
 const validPassword = p => typeof p === 'string' && p.length >= 10 && p.length <= 128 && /[a-z]/.test(p) && /[A-Z]/.test(p) && /\d/.test(p) && /[^A-Za-z0-9]/.test(p);
 
+
+
 // FIXED: Cleaned and completely stabilized regex syntax error causing structural 500 runtime crash
-const validUsername = u => typeof u === 'string' && /^[A-Za-z0-9_]{3,20}\$/.test(u);
+//const validUsername = u => typeof u === 'string' && /^[A-Za-z0-9_]{3,20}\$/.test(u);
+
+
+const username = req.body.username.trim().toLowercase();
+if(!USERNAME_RE.test(username))  {
+return res.status(400).json({error: "Username: 5-20 letters, numbers, or underscore"});
+}
+
+
+
 
 const GENERIC = { error: 'Invalid username or password' };
 const dummy = C.hashPassword('dummy-password'); 
